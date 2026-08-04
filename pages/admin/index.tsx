@@ -3,6 +3,7 @@ import { authOptions } from '../api/auth/[...nextauth]'
 import type { GetServerSideProps } from 'next'
 import useSWR from 'swr'
 import { useState } from 'react'
+import prisma from '../../lib/prisma'
 
 type OrderItem = {
   id: string
@@ -86,6 +87,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return {
       redirect: {
         destination: '/api/auth/signin',
+        permanent: false
+      }
+    }
+  }
+
+  // verify admin role
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+  if (!user || user.role !== 'ADMIN') {
+    return {
+      redirect: {
+        destination: '/',
         permanent: false
       }
     }

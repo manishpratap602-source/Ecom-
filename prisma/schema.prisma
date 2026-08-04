@@ -7,11 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
   password  String? // if using credentials
+  role      Role     @default(USER)
   orders    Order[]
   createdAt DateTime @default(now())
 }
@@ -42,7 +48,7 @@ model Coupon {
   percentOff  Int?     // e.g., 10 = 10%
   amountOff   Int?     // flat amount in cents
   expiresAt   DateTime?
-  maxUses      Int?    
+  maxUses      Int?
   createdAt   DateTime @default(now())
 }
 
