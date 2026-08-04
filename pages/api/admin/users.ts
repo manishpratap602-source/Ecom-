@@ -24,6 +24,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { email, role } = req.body as { email?: string; role?: 'ADMIN' | 'USER' }
       if (!email || !role) return res.status(400).json({ error: 'email_and_role_required' })
 
+      // If attempting to set role to USER (i.e., demote) ensure we don't demote the last admin
+      if (role === 'USER') {
+        const targetUser = await prisma.user.findUnique({ where: { email } })
+        if (targetUser && targetUser.role === 'ADMIN') {
+          const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } })
+          if (adminCount <= 1) {
+            return res.status(400).json({ error: 'cannot_demote_last_admin' })
+          }
+        }
+      }
+
       const user = await prisma.user.upsert({
         where: { email },
         update: { role },
@@ -47,17 +58,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { email } = req.body as { email?: string }
       if (!email) return res.status(400).json({ error: 'email_required' })
 
+      // Prevent demoting the last remaining admin
+      const targetUser = await prisma.user.findUnique({ where: { email } })
+      if (targetUser && targetUser.role === 'ADMIN') {
+        const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } })
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'cannot_demote_last_admin' })
+        }
+      }
+
       const result = await prisma.user.updateMany({ where: { email }, data: { role: 'USER' } })
 
-      // audit log
-      await prisma.adminAction.create({
-        data: {
-          actorId: actingUser.id,
-          action: 'demote_user',
-          target: email,
-          details: 'demoted to USER'
-        }
-      })
+      // audit log (only if someone was affected)
+      if (result.count > 0) {
+        await prisma.adminAction.create({
+          data: {
+            actorId: actingUser.id,
+            action: 'demote_user',
+            target: email,
+            details: 'demoted to USER'
+          }
+        })
+      }
 
       return res.status(200).json({ success: true, count: result.count })
     }
