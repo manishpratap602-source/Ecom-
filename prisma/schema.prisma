@@ -92,3 +92,13 @@ model OrderItem {
   unitPrice Int
   quantity  Int
 }
+
+model AdminAction {
+  id        String   @id @default(cuid())
+  actor     User?    @relation(fields: [actorId], references: [id])
+  actorId   String?
+  action    String
+  target    String?
+  details   String?
+  createdAt DateTime @default(now())
+}

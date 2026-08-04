@@ -30,6 +30,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         create: { email, role }
       })
 
+      // audit log
+      await prisma.adminAction.create({
+        data: {
+          actorId: actingUser.id,
+          action: role === 'ADMIN' ? 'promote_user' : 'set_role',
+          target: email,
+          details: `set role -> ${role}`
+        }
+      })
+
       return res.status(200).json(user)
     }
 
@@ -37,8 +47,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { email } = req.body as { email?: string }
       if (!email) return res.status(400).json({ error: 'email_required' })
 
-      const user = await prisma.user.updateMany({ where: { email }, data: { role: 'USER' } })
-      return res.status(200).json({ success: true, count: user.count })
+      const result = await prisma.user.updateMany({ where: { email }, data: { role: 'USER' } })
+
+      // audit log
+      await prisma.adminAction.create({
+        data: {
+          actorId: actingUser.id,
+          action: 'demote_user',
+          target: email,
+          details: 'demoted to USER'
+        }
+      })
+
+      return res.status(200).json({ success: true, count: result.count })
     }
 
     return res.status(405).json({ error: 'method_not_allowed' })

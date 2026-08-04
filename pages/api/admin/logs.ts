@@ -11,27 +11,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const user = await prisma.user.findUnique({ where: { email: session.user.email } })
     if (!user || user.role !== 'ADMIN') return res.status(403).json({ error: 'forbidden' })
 
-    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
-
-    const { orderId } = req.body as { orderId?: string }
-    if (!orderId) return res.status(400).json({ error: 'orderId_required' })
-
-    const order = await prisma.order.update({
-      where: { id: orderId },
-      data: { paid: true }
+    const logs = await prisma.adminAction.findMany({
+      include: { actor: { select: { id: true, email: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200
     })
 
-    // audit log
-    await prisma.adminAction.create({
-      data: {
-        actorId: user.id,
-        action: 'mark_paid',
-        target: orderId,
-        details: `marked order ${orderId} as paid`
-      }
-    })
-
-    res.status(200).json(order)
+    res.status(200).json(logs)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'internal_error' })
